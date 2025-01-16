@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, ScrollView, Platform } from 'react-native';
-import { TextInput, Button, HelperText, Snackbar } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, Platform, Text } from 'react-native';
+import { TextInput, Button, HelperText, Snackbar, SegmentedButtons } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../lib/supabase';
+import { Category } from '../types';
 
 export function CreateStrikeScreen({ navigation }: any) {
     const [title, setTitle] = useState('');
@@ -10,12 +11,28 @@ export function CreateStrikeScreen({ navigation }: any) {
     const [description, setDescription] = useState('');
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
-    const [participants, setParticipants] = useState('');
+    const [categoryId, setCategoryId] = useState<number | null>(null);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [snackbarVisible, setSnackbarVisible] = useState(false);
     const [showStartDatePicker, setShowStartDatePicker] = useState(false);
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    async function fetchCategories() {
+        const { data, error } = await supabase
+            .from('strike_categories')
+            .select('*')
+            .order('name');
+
+        if (!error && data) {
+            setCategories(data);
+        }
+    }
 
     const formatDate = (date: Date) => {
         return date.toISOString().split('T')[0];
@@ -52,6 +69,10 @@ export function CreateStrikeScreen({ navigation }: any) {
             setError('End date must be after or equal to start date');
             return;
         }
+        if (!categoryId) {
+            setError('Category is required');
+            return;
+        }
 
         setLoading(true);
         setError('');
@@ -63,7 +84,9 @@ export function CreateStrikeScreen({ navigation }: any) {
                 description: description.trim(),
                 start_date: formatDate(startDate),
                 end_date: formatDate(endDate),
-                participants_count: parseInt(participants, 10),
+                category_id: categoryId,
+                participants_count: 0,
+                shared_count: 0,
             },
         ]);
 
@@ -108,14 +131,6 @@ export function CreateStrikeScreen({ navigation }: any) {
                     numberOfLines={4}
                     style={{ marginBottom: 16 }}
                 />
-                <TextInput
-                    label="Participants"
-                    value={participants}
-                    onChangeText={text => setParticipants(text)}
-                    mode="outlined"
-                    keyboardType="numeric"
-                    style={{ marginBottom: 16 }}
-                />
 
                 <Button
                     mode="outlined"
@@ -151,6 +166,17 @@ export function CreateStrikeScreen({ navigation }: any) {
                         minimumDate={startDate}
                     />
                 )}
+
+                <Text style={{ marginBottom: 8 }}>Category:</Text>
+                <SegmentedButtons
+                    value={categoryId?.toString() || ''}
+                    onValueChange={(value) => setCategoryId(parseInt(value))}
+                    buttons={categories.map((category) => ({
+                        value: category.id.toString(),
+                        label: category.name,
+                    }))}
+                    style={{ marginBottom: 16 }}
+                />
 
                 {error ? (
                     <HelperText type="error" visible={!!error}>
